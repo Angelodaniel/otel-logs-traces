@@ -388,4 +388,7 @@ MIT License - feel free to use this demo for learning and teaching.
 3. Experiment with different collector exporters (Jaeger, Prometheus, etc.)
 4. Add metrics collection (currently only traces and logs)
 5. Implement sampling strategies in the collector
+<img width="1594" height="608" alt="Screenshot 2025-12-02 at 12 58 11" src="https://github.com/user-attachments/assets/414a3663-77d0-43cb-8715-1b0fabbf2288" />
+<img width="935" height="208" alt="Screenshot 2025-12-02 at 12 58 01" src="https://github.com/user-attachments/assets/228c4ec2-8d75-4074-95c4-a6e0100c06aa" />
+<img width="604" height="712" alt="Screenshot 2025-12-02 at 12 57 55" src="https://github.com/user-attachments/assets/72ec63cd-0b27-4241-8647-831424c33470" />
 
