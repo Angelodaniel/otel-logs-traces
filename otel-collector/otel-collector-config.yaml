@@ -1,0 +1,124 @@
+# OpenTelemetry Collector Configuration
+# This collector receives traces and logs from the frontend and backend,
+# then exports them to Sentry via OTLP/HTTP
+
+receivers:
+  # OTLP receiver for traces and logs
+  otlp:
+    protocols:
+      # HTTP endpoint (default: 4318)
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "http://localhost:5173"  # Frontend origin
+            - "http://*"
+          allowed_headers:
+            - "*"
+      # gRPC endpoint (default: 4317)
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  # Batch processor to reduce number of outgoing connections
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+    send_batch_max_size: 1000
+
+  # Resource processor to add additional attributes
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: demo
+        action: upsert
+      - key: collector.name
+        value: otel-collector
+        action: insert
+
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+
+exporters:
+  # Debug exporter for debugging (logs to collector stdout)
+  debug:
+    verbosity: detailed
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+  # OTLP/HTTP exporter for Sentry
+  # Documentation: https://docs.sentry.io/product/drains/integration/opentelemetry-collector/
+  otlphttp/sentry:
+    # Sentry OTLP base endpoint (collector will append /v1/logs or /v1/traces)
+    # Format: https://o[ORG_ID].ingest.sentry.io/api/[PROJECT_ID]/integration/otlp
+    # 
+    # You can also use specific endpoints:
+    # logs_endpoint: https://o[ORG_ID].ingest.sentry.io/api/[PROJECT_ID]/integration/otlp/v1/logs
+    # traces_endpoint: https://o[ORG_ID].ingest.sentry.io/api/[PROJECT_ID]/integration/otlp/v1/traces
+    endpoint: ${env:SENTRY_OTLP_ENDPOINT}
+    
+    headers:
+      # Sentry uses a custom x-sentry-auth header with the public key from your DSN
+      # Format: x-sentry-auth: sentry sentry_key=YOUR_PUBLIC_KEY
+      # 
+      # To find your public key:
+      # 1. Go to Sentry Project Settings → Client Keys (DSN)
+      # 2. Look under "OpenTelemetry (OTLP)" section
+      # 3. Copy the public key from the DSN or the provided auth header
+      x-sentry-auth: "${env:SENTRY_AUTH_HEADER}"
+    
+    # Compression (recommended by Sentry)
+    compression: gzip
+    
+    # Encoding (recommended by Sentry)
+    encoding: proto
+    
+    # Timeout for sending data
+    timeout: 30s
+    
+    # Retry configuration
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+  # Optional: File exporter for local debugging
+  # file:
+  #   path: /tmp/otel-data.json
+
+# Extensions for collector health and monitoring
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  pprof:
+    endpoint: 0.0.0.0:1777
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+# Service configuration
+service:
+  extensions: [health_check, pprof, zpages]
+  
+  pipelines:
+    # Traces pipeline
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [debug, otlphttp/sentry]
+    
+    # Logs pipeline
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [debug, otlphttp/sentry]
+
+  # Telemetry configuration for the collector itself
+  telemetry:
+    logs:
+      level: info
+      development: false
+      encoding: console
+

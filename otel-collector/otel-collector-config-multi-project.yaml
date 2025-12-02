@@ -1,0 +1,141 @@
+# Alternative Configuration: Route Frontend and Backend to Separate Sentry Projects
+# This is more complex but gives you separate projects for each service
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "http://localhost:5173"
+            - "http://*"
+          allowed_headers:
+            - "*"
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+
+  # Add attributes processor to ensure service.name is set
+  attributes:
+    actions:
+      - key: service.name
+        action: upsert
+        from_attribute: service.name
+
+exporters:
+  # Debug exporter for debugging
+  debug:
+    verbosity: detailed
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+  # Backend Sentry project
+  otlphttp/backend:
+    endpoint: ${env:SENTRY_BACKEND_OTLP_ENDPOINT}
+    headers:
+      x-sentry-auth: "${env:SENTRY_BACKEND_AUTH_HEADER}"
+    compression: gzip
+    encoding: proto
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+  # Frontend Sentry project
+  otlphttp/frontend:
+    endpoint: ${env:SENTRY_FRONTEND_OTLP_ENDPOINT}
+    headers:
+      x-sentry-auth: "${env:SENTRY_FRONTEND_AUTH_HEADER}"
+    compression: gzip
+    encoding: proto
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+connectors:
+  routing:
+    # Route based on service.name attribute
+    default_pipelines: []
+    error_mode: ignore
+    table:
+      - statement: route() where attributes["service.name"] == "demo-backend"
+        pipelines: [traces/backend]
+      - statement: route() where attributes["service.name"] == "demo-frontend"
+        pipelines: [traces/frontend]
+  
+  routing/logs:
+    # Separate routing for logs
+    default_pipelines: []
+    error_mode: ignore
+    table:
+      - statement: route() where attributes["service.name"] == "demo-backend"
+        pipelines: [logs/backend]
+      - statement: route() where attributes["service.name"] == "demo-frontend"
+        pipelines: [logs/frontend]
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  pprof:
+    endpoint: 0.0.0.0:1777
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+service:
+  extensions: [health_check, pprof, zpages]
+  
+  pipelines:
+    # Receive all traces
+    traces/all:
+      receivers: [otlp]
+      processors: [memory_limiter, attributes, batch]
+      exporters: [debug, routing]
+    
+    # Backend traces to backend project
+    traces/backend:
+      receivers: [routing]
+      processors: [batch]
+      exporters: [otlphttp/backend]
+    
+    # Frontend traces to frontend project
+    traces/frontend:
+      receivers: [routing]
+      processors: [batch]
+      exporters: [otlphttp/frontend]
+    
+    # Receive all logs
+    logs/all:
+      receivers: [otlp]
+      processors: [memory_limiter, attributes, batch]
+      exporters: [debug, routing/logs]
+    
+    # Backend logs to backend project
+    logs/backend:
+      receivers: [routing/logs]
+      processors: [batch]
+      exporters: [otlphttp/backend]
+    
+    # Frontend logs to frontend project
+    logs/frontend:
+      receivers: [routing/logs]
+      processors: [batch]
+      exporters: [otlphttp/frontend]
+
+  telemetry:
+    logs:
+      level: info
+

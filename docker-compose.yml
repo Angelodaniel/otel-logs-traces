@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # OpenTelemetry Collector
+  # Receives telemetry from frontend and backend, routes to separate Sentry projects
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector/otel-collector-config-multi-project.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "13133:13133" # Health check
+      - "55679:55679" # ZPages
+    environment:
+      # Backend Sentry project
+      SENTRY_BACKEND_OTLP_ENDPOINT: ${SENTRY_BACKEND_OTLP_ENDPOINT}
+      SENTRY_BACKEND_AUTH_HEADER: ${SENTRY_BACKEND_AUTH_HEADER}
+      
+      # Frontend Sentry project
+      SENTRY_FRONTEND_OTLP_ENDPOINT: ${SENTRY_FRONTEND_OTLP_ENDPOINT}
+      SENTRY_FRONTEND_AUTH_HEADER: ${SENTRY_FRONTEND_AUTH_HEADER}
+    networks:
+      - otel-demo
+    restart: unless-stopped
+
+  # Backend API (Node.js + Express)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: otel-backend
+    ports:
+      - "4000:4000"
+    environment:
+      # Backend config
+      PORT: 4000
+      NODE_ENV: production
+      
+      # OpenTelemetry config
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: demo-backend
+      OTEL_RESOURCE_ATTRIBUTES: service.name=demo-backend,service.environment=demo
+    depends_on:
+      - otel-collector
+    networks:
+      - otel-demo
+    restart: unless-stopped
+
+  # Frontend (React + Vite)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: otel-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      # Frontend config
+      VITE_BACKEND_URL: http://localhost:4000
+    depends_on:
+      - backend
+      - otel-collector
+    networks:
+      - otel-demo
+    restart: unless-stopped
+
+networks:
+  otel-demo:
+    driver: bridge
+
+# Optional: Volumes for persistent data
+# volumes:
+#   otel-data:
+
