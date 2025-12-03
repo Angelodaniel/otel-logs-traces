@@ -43,8 +43,10 @@ registerInstrumentations({
     new FetchInstrumentation({
       // Propagate trace context to these URLs
       propagateTraceHeaderCorsUrls: [
-        /localhost:4000/,  // Backend
-        /http:\/\/backend:4000/, // Docker backend
+        /localhost:4000/,  // Node.js Backend
+        /http:\/\/backend:4000/, // Docker Node.js backend
+        /localhost:5001/,  // Rails Backend
+        /http:\/\/rails-backend:5001/, // Docker Rails backend
       ],
       // Clear timing resources (reduces memory usage)
       clearTimingResources: true,

@@ -66,6 +66,20 @@ exporters:
       max_interval: 30s
       max_elapsed_time: 300s
 
+  # Rails Sentry project (defaults to backend if not specified)
+  otlphttp/rails:
+    endpoint: ${env:SENTRY_RAILS_OTLP_ENDPOINT}
+    headers:
+      x-sentry-auth: "${env:SENTRY_RAILS_AUTH_HEADER}"
+    compression: gzip
+    encoding: proto
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
 connectors:
   routing:
     # Route based on service.name attribute
@@ -76,6 +90,8 @@ connectors:
         pipelines: [traces/backend]
       - statement: route() where attributes["service.name"] == "demo-frontend"
         pipelines: [traces/frontend]
+      - statement: route() where attributes["service.name"] == "demo-rails-backend"
+        pipelines: [traces/rails]
   
   routing/logs:
     # Separate routing for logs
@@ -86,6 +102,8 @@ connectors:
         pipelines: [logs/backend]
       - statement: route() where attributes["service.name"] == "demo-frontend"
         pipelines: [logs/frontend]
+      - statement: route() where attributes["service.name"] == "demo-rails-backend"
+        pipelines: [logs/rails]
 
 extensions:
   health_check:
@@ -117,6 +135,12 @@ service:
       processors: [batch]
       exporters: [otlphttp/frontend]
     
+    # Rails traces to rails project
+    traces/rails:
+      receivers: [routing]
+      processors: [batch]
+      exporters: [otlphttp/rails]
+    
     # Receive all logs
     logs/all:
       receivers: [otlp]
@@ -134,6 +158,12 @@ service:
       receivers: [routing/logs]
       processors: [batch]
       exporters: [otlphttp/frontend]
+    
+    # Rails logs to rails project
+    logs/rails:
+      receivers: [routing/logs]
+      processors: [batch]
+      exporters: [otlphttp/rails]
 
   telemetry:
     logs:

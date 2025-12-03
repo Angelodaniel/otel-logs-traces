@@ -114,27 +114,49 @@ docker-compose up --build -d
 
 This will start:
 - **Frontend**: http://localhost:5173
-- **Backend**: http://localhost:4000
+- **Backend (Node.js)**: http://localhost:4000
+- **Backend (Rails)**: http://localhost:5000
 - **Collector**: HTTP on port 4318, gRPC on port 4317
 
 ### Step 3: Generate Telemetry
 
 1. Open http://localhost:5173 in your browser
-2. Click the test buttons:
+2. Click the test buttons to test **Node.js backend**:
    - **Health Check**: Simple successful request
    - **Fetch Data**: Successful API call with data
    - **Slow Request**: 1-second delay to see span timing
    - **Trigger Error**: Intentional error to test error tracking
 
+3. Test **Rails backend** endpoints:
+   ```bash
+   # Ruby data
+   curl http://localhost:5000/api/ruby-data
+   
+   # Slow Ruby endpoint
+   curl http://localhost:5000/api/ruby-slow
+   
+   # Distributed tracing: Rails → Node.js
+   curl http://localhost:5000/api/call-node
+   ```
+
 ### Step 4: View in Sentry
 
-1. Go to your Sentry project
+1. Go to your Sentry project(s)
 2. Navigate to **Performance** (or **Traces**) to see distributed traces
-3. Look for traces with spans from both:
-   - `demo-frontend` service
-   - `demo-backend` service
-4. Check **Logs** (if available in your Sentry plan) to see correlated backend logs
-5. Verify trace IDs match between frontend spans, backend spans, and logs
+3. Look for traces with spans from:
+   - `demo-frontend` service (React)
+   - `demo-backend` service (Node.js)
+   - `demo-rails-backend` service (Ruby) - **polyglot tracing!**
+4. **Distributed Trace Example**: When Rails calls Node.js (`/api/call-node`), you'll see a single trace spanning both:
+   ```
+   Trace abc123:
+   ├─ [Rails] GET /api/call-node
+   │  └─ [Rails] call-node-backend
+   │     └─ [Node] HTTP GET /api/data
+   │        └─ [Node] fetch-data
+   ```
+5. Check **Logs** (if available) to see correlated backend logs
+6. Verify trace IDs match across all services
 
 ## 📁 Project Structure
 

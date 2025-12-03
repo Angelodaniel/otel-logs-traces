@@ -1,0 +1,33 @@
+source 'https://rubygems.org'
+
+ruby '~> 3.2.0'
+
+# Rails
+gem 'rails', '~> 7.1.0'
+
+# Use Puma as the app server
+gem 'puma', '~> 6.0'
+
+# Build JSON APIs with ease
+gem 'jbuilder', '~> 2.7'
+
+# Reduces boot times through caching
+gem 'bootsnap', '>= 1.4.4', require: false
+
+# Use Rack CORS for handling Cross-Origin Resource Sharing (CORS)
+gem 'rack-cors'
+
+# OpenTelemetry dependencies
+gem 'opentelemetry-sdk', '~> 1.4'
+gem 'opentelemetry-exporter-otlp', '~> 0.27'
+gem 'opentelemetry-instrumentation-all', '~> 0.60'
+
+group :development, :test do
+  # Call 'byebug' anywhere in the code to stop execution and get a debugger console
+  gem 'byebug', platforms: [:mri, :mingw, :x64_mingw]
+end
+
+group :development do
+  gem 'listen', '~> 3.3'
+end
+

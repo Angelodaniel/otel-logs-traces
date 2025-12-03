@@ -22,6 +22,10 @@ services:
       # Frontend Sentry project
       SENTRY_FRONTEND_OTLP_ENDPOINT: ${SENTRY_FRONTEND_OTLP_ENDPOINT}
       SENTRY_FRONTEND_AUTH_HEADER: ${SENTRY_FRONTEND_AUTH_HEADER}
+      
+      # Rails Sentry project (optional - comment out if using same as backend)
+      SENTRY_RAILS_OTLP_ENDPOINT: ${SENTRY_RAILS_OTLP_ENDPOINT:-${SENTRY_BACKEND_OTLP_ENDPOINT}}
+      SENTRY_RAILS_AUTH_HEADER: ${SENTRY_RAILS_AUTH_HEADER:-${SENTRY_BACKEND_AUTH_HEADER}}
     networks:
       - otel-demo
     restart: unless-stopped
@@ -49,6 +53,31 @@ services:
       - otel-demo
     restart: unless-stopped
 
+  # Rails Backend API (Ruby on Rails)
+  rails-backend:
+    build:
+      context: ./rails-backend
+      dockerfile: Dockerfile
+    container_name: otel-rails-backend
+    ports:
+      - "5001:5001"
+    environment:
+      # Rails config
+      PORT: 5001
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: "true"
+      SECRET_KEY_BASE: "demo_secret_key_base_for_development_only_not_for_production_use_please_change_this_in_real_deployment"
+      
+      # OpenTelemetry config
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: demo-rails-backend
+      OTEL_RESOURCE_ATTRIBUTES: service.name=demo-rails-backend,service.environment=demo
+    depends_on:
+      - otel-collector
+    networks:
+      - otel-demo
+    restart: unless-stopped
+
   # Frontend (React + Vite)
   frontend:
     build:
@@ -60,8 +89,10 @@ services:
     environment:
       # Frontend config
       VITE_BACKEND_URL: http://localhost:4000
+      VITE_RAILS_BACKEND_URL: http://localhost:5000
     depends_on:
       - backend
+      - rails-backend
       - otel-collector
     networks:
       - otel-demo

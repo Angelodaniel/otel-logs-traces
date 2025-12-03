@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { trace } from '@opentelemetry/api';
 
-// Get backend URL from environment or use default
+// Get backend URLs from environment or use defaults
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+const RAILS_BACKEND_URL = import.meta.env.VITE_RAILS_BACKEND_URL || 'http://localhost:5001';
 
 function App() {
   const [response, setResponse] = useState<string>('');
@@ -12,7 +13,7 @@ function App() {
   // Get tracer for manual instrumentation
   const tracer = trace.getTracer('demo-frontend', '1.0.0');
 
-  const makeRequest = async (endpoint: string, expectError = false) => {
+  const makeRequest = async (endpoint: string, baseUrl: string = BACKEND_URL, expectError = false) => {
     setLoading(true);
     setError('');
     setResponse('');
@@ -20,12 +21,13 @@ function App() {
     // Create a custom span for this user action
     const span = tracer.startSpan(`user-action: ${endpoint}`);
     span.setAttribute('user.action', endpoint);
+    span.setAttribute('backend.url', baseUrl);
 
     try {
-      console.log(`Making request to: ${BACKEND_URL}${endpoint}`);
+      console.log(`Making request to: ${baseUrl}${endpoint}`);
       
       // The fetch will be automatically instrumented and will propagate trace context
-      const res = await fetch(`${BACKEND_URL}${endpoint}`);
+      const res = await fetch(`${baseUrl}${endpoint}`);
       const data = await res.json();
 
       if (!res.ok && !expectError) {
@@ -55,9 +57,9 @@ function App() {
         </p>
 
         <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>Test Endpoints</h2>
+          <h2 style={styles.sectionTitle}>Node.js Backend Endpoints</h2>
           <p style={styles.description}>
-            Click the buttons below to send requests to the backend.
+            Click the buttons below to send requests to the Node.js backend.
             Each request will generate traces that flow through the OpenTelemetry Collector to Sentry.
           </p>
 
@@ -88,10 +90,52 @@ function App() {
 
             <button
               style={{ ...styles.button, ...styles.buttonDanger }}
-              onClick={() => makeRequest('/api/error', true)}
+              onClick={() => makeRequest('/api/error', BACKEND_URL, true)}
               disabled={loading}
             >
               💥 Trigger Error
+            </button>
+          </div>
+        </div>
+
+        <div style={styles.section}>
+          <h2 style={styles.sectionTitle}>Ruby/Rails Backend Endpoints</h2>
+          <p style={styles.description}>
+            Click the buttons below to send requests to the Rails backend.
+            These will generate Ruby spans with OpenTelemetry instrumentation.
+          </p>
+
+          <div style={styles.buttonGroup}>
+            <button
+              style={{ ...styles.button, ...styles.buttonRuby }}
+              onClick={() => makeRequest('/health', RAILS_BACKEND_URL)}
+              disabled={loading}
+            >
+              💎 Ruby Health Check
+            </button>
+
+            <button
+              style={{ ...styles.button, ...styles.buttonRuby }}
+              onClick={() => makeRequest('/api/ruby-data', RAILS_BACKEND_URL)}
+              disabled={loading}
+            >
+              💎 Fetch Ruby Data
+            </button>
+
+            <button
+              style={{ ...styles.button, ...styles.buttonRubyWarning }}
+              onClick={() => makeRequest('/api/ruby-slow', RAILS_BACKEND_URL)}
+              disabled={loading}
+            >
+              💎 Ruby Slow Request (1s)
+            </button>
+
+            <button
+              style={{ ...styles.button, ...styles.buttonRubyDanger }}
+              onClick={() => makeRequest('/api/ruby-error', RAILS_BACKEND_URL, true)}
+              disabled={loading}
+            >
+              💎 Ruby Trigger Error
             </button>
           </div>
         </div>
@@ -130,7 +174,8 @@ function App() {
         </div>
 
         <div style={styles.footer}>
-          <p>Backend: <code>{BACKEND_URL}</code></p>
+          <p>Node.js Backend: <code>{BACKEND_URL}</code></p>
+          <p>Rails Backend: <code>{RAILS_BACKEND_URL}</code></p>
           <p>Collector: <code>http://localhost:4318</code></p>
         </div>
       </div>
@@ -202,6 +247,16 @@ const styles: Record<string, React.CSSProperties> = {
   },
   buttonDanger: {
     background: '#f56565',
+  },
+  buttonRuby: {
+    background: '#d53f8c',
+  },
+  buttonRubyWarning: {
+    background: '#d53f8c',
+    opacity: 0.8,
+  },
+  buttonRubyDanger: {
+    background: '#97266d',
   },
   loading: {
     textAlign: 'center',
